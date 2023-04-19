@@ -1,7 +1,9 @@
 import discord
 import logging
 import os
+import re
 import json
+import random
 from inspect import getsourcefile
 from dotenv import load_dotenv
 
@@ -27,6 +29,21 @@ logger.addHandler(handler)
 intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
+dice_regex = re.compile(r"(?P<count>\d+)?d(?P<sides>\d+)")
+
+
+def format_dice_rolls(rolls):
+    max_roll = max(rolls)
+    width = len(str(max_roll)) + 2
+    border = "+" + "-" * width + "+"
+    output = [border]
+
+    for roll in rolls:
+        output.append("| " + str(roll).rjust(width - 2) + " |")
+
+    output.append(border)
+    message = "```\n" + ("\n".join(output)) + "```"
+    return message
 
 
 @client.event
@@ -37,13 +54,14 @@ async def on_ready():
 @client.event
 async def on_message(message: discord.Message):
     if message.author == client.user:
+        print(message.content)
         return
 
     for embed in message.embeds:
-        print(embed)
         if embed.video and embed.video.url.__contains__("twitter.com"):
-            print(embed.video.url)
-            await message.edit(content=message.content.replace("twitter.com", "vx.twitter.com"))
+            embed_dict = embed.to_dict()
+            await message.edit(suppress=True)
+            await message.channel.send(embed_dict["url"].replace("twitter.com", "vxtwitter.com"))
 
     if message.content.startswith('$hello'):
         await message.channel.send('Hello!')
@@ -51,6 +69,18 @@ async def on_message(message: discord.Message):
         print("Client:\n", client)
         print("Message:\n", message)
         await message.channel.send('The bugs are gone fishin\'')
+    elif message.content.startswith('$roll'):
+        result = dice_regex.search(string=message.content)
+        if result:
+            sides = int(result.group("sides"))
+            if result.group("count") is None:
+                count = 1
+            else:
+                count = int(result.group("count"))
+            roll = random.choices(range(1, sides+1), k=count)
+            await message.channel.send(format_dice_rolls(roll))
+        else:
+            await message.channel.send("No dice! Try '$roll 2d6'")
 
 
 @client.event
@@ -58,6 +88,7 @@ async def on_voice_state_update(member, before, after):
     old_user_channel = before.channel
     new_user_channel = after.channel
 
+    print(member)
     print("Voice state update before:", before)
     print("Voice state update after:", after)
 
